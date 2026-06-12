@@ -8,16 +8,10 @@ import type { User } from "@supabase/supabase-js";
 import {
   LANGUAGES,
   t,
-  formatLifespanI18n,
   type LangCode,
 } from "@/lib/i18n/translations";
 
 type PlanTier = "free" | "hacker" | "pro";
-
-interface Profile {
-  plan: PlanTier;
-  credits_remaining: number;
-}
 
 function GithubLogo() {
   return (
@@ -357,12 +351,14 @@ function LoginModal({
 function Navbar({
   user,
   onLoginClick,
+  onChooseServer,
   onSignOut,
   lang,
   onLangChange,
 }: {
   user: User | null;
   onLoginClick: () => void;
+  onChooseServer: () => void;
   onSignOut: () => void;
   lang: LangCode;
   onLangChange: (l: LangCode) => void;
@@ -407,6 +403,13 @@ function Navbar({
           </div>
         </div>
         {user ? (
+          <button onClick={onChooseServer} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">
+            Choose Server
+          </button>
+        ) : (
+          <button onClick={onLoginClick} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">{t("nav.login", lang)}</button>
+        )}
+        {user && (
           <>
             <span className="text-sm text-emerald-400">{displayName}</span>
             <button onClick={onSignOut} className="flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300">
@@ -414,110 +417,255 @@ function Navbar({
               <span className="hidden sm:inline">{t("nav.signout", lang)}</span>
             </button>
           </>
-        ) : (
-          <button onClick={onLoginClick} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">{t("nav.login", lang)}</button>
         )}
       </div>
     </nav>
   );
 }
 
-interface Plan {
-  emoji: string;
-  titleKey: string;
-  featuresKeys: string[];
-  priceKey: string | null;
-  buttonKey: string;
-  variant: "outline" | "glow" | "premium";
-  action: "auth" | "checkout";
-  tier: PlanTier;
-}
-
-const plans: Plan[] = [
-  {
-    emoji: "🪐",
-    titleKey: "plan.free.title",
-    featuresKeys: ["plan.free.feature1", "plan.free.feature2", "plan.free.feature3"],
-    priceKey: null,
-    buttonKey: "plan.free.button",
-    variant: "outline",
-    action: "auth",
-    tier: "free",
-  },
-  {
-    emoji: "🐹",
-    titleKey: "plan.hacker.title",
-    featuresKeys: ["plan.hacker.feature1", "plan.hacker.feature2", "plan.hacker.feature3"],
-    priceKey: "plan.hacker.price",
-    buttonKey: "plan.hacker.button",
-    variant: "glow",
-    action: "checkout",
-    tier: "hacker",
-  },
-  {
-    emoji: "🚀",
-    titleKey: "plan.pro.title",
-    featuresKeys: ["plan.pro.feature1", "plan.pro.feature2", "plan.pro.feature3", "plan.pro.feature4"],
-    priceKey: "plan.pro.price",
-    buttonKey: "plan.pro.button",
-    variant: "premium",
-    action: "checkout",
-    tier: "pro",
-  },
-];
-
-function PlanCard({
-  plan,
-  index,
+function ServerPlanModal({
+  open,
+  onClose,
   user,
   lang,
-  onActivate,
-  onRequireAuth,
+  onActivated,
 }: {
-  plan: Plan;
-  index: number;
+  open: boolean;
+  onClose: () => void;
   user: User | null;
   lang: LangCode;
-  onActivate: (tier: PlanTier) => void;
-  onRequireAuth: () => void;
+  onActivated: () => void;
 }) {
-  const router = useRouter();
-  const isMiddle = index === 1;
+  const [supabase] = useState(createClient);
+  const [error, setError] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [freeLifespan, setFreeLifespan] = useState(1);
+  const [hackerDays, setHackerDays] = useState(1);
+  const [proMonths, setProMonths] = useState(1);
 
-  const handleClick = () => {
-    if (plan.action === "auth") {
-      if (!user) { onRequireAuth(); return; }
-      onActivate(plan.tier);
+  useEffect(() => {
+    if (!open) return;
+    setFreeLifespan(1);
+    setHackerDays(1);
+    setProMonths(1);
+    setError("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  const hackerPrice = (1 + (hackerDays - 1) * (7 / 29)).toFixed(0);
+  const proPrice = (7 + (proMonths - 1) * (13 / 11)).toFixed(0);
+
+  const handleActivate = async (tier: PlanTier, lifespanMax: number) => {
+    setActivating(true);
+    setError("");
+    const client = supabase ?? createClient();
+    if (!client || !user) { setError("Not logged in"); setActivating(false); return; }
+
+    const maxPages = tier === "free" ? 10 : tier === "hacker" ? 18 : 28;
+    const storageMB = tier === "free" ? 300 : tier === "hacker" ? 800 : 1024;
+
+    const { error: insertError } = await client.from("profiles").upsert({
+      id: user.id,
+      plan: tier,
+      credits_remaining: 999,
+      lifespan_max_minutes: lifespanMax,
+      max_pages: maxPages,
+      max_storage_mb: storageMB,
+    });
+
+    if (insertError) {
+      console.error("[ServerPlanModal] insert error:", insertError);
+      setError(insertError.message);
+      setActivating(false);
       return;
     }
-    console.log(`Redirect to checkout: ${plan.titleKey}`);
-    router.push("/checkout");
+
+    setActivating(false);
+    onActivated();
+  };
+
+  if (!open) return null;
+
+  const planCard = (tier: "free" | "hacker" | "pro") => {
+    const isFree = tier === "free";
+    const isHacker = tier === "hacker";
+    const isPro = tier === "pro";
+
+    const label = isFree ? "Free" : isHacker ? "Hacker" : "Pro";
+    const storage = isFree ? "300 MB" : isHacker ? "800 MB" : "1 GB";
+    const pages = isFree ? "10" : isHacker ? "18" : "28";
+    const emoji = isFree ? "🪐" : isHacker ? "🐹" : "🚀";
+    const accentColor = isFree
+      ? "border-zinc-700 hover:border-zinc-500"
+      : isHacker
+        ? "border-emerald-500/40 shadow-[0_0_16px_#10b98120]"
+        : "border-zinc-600 bg-gradient-to-b from-zinc-800/50 to-zinc-900/50";
+
+    return (
+      <div className={`relative flex flex-col rounded-2xl border p-6 transition-all ${accentColor}`}>
+        <div className="mb-4 text-2xl">{emoji}</div>
+        <h3 className="text-lg font-semibold text-zinc-100">{label}</h3>
+
+        <div className="my-4 space-y-1 text-xs text-zinc-500">
+          <p>Storage: <span className="text-zinc-300">{storage}</span></p>
+          <p>Max pages: <span className="text-zinc-300">{pages}</span></p>
+        </div>
+
+        {isFree && (
+          <div className="mb-6 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-500">Lifespan</span>
+              <span className="text-emerald-400 text-sm tabular-nums">
+                {freeLifespan}h
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={24}
+              value={freeLifespan}
+              onChange={(e) => setFreeLifespan(Number(e.target.value))}
+              className="w-full cursor-pointer appearance-none rounded-full bg-zinc-800 outline-none
+                [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-zinc-800
+                [&::-webkit-slider-thumb]:mt-[-4px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:shadow-[0_0_8px_#10b98160]"
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>1h</span>
+              <span>24h</span>
+            </div>
+          </div>
+        )}
+
+        {isHacker && (
+          <div className="mb-6 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-500">Lifespan</span>
+              <span className="text-emerald-400 text-sm tabular-nums">{hackerDays}d</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={30}
+              value={hackerDays}
+              onChange={(e) => setHackerDays(Number(e.target.value))}
+              className="w-full cursor-pointer appearance-none rounded-full bg-zinc-800 outline-none
+                [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-zinc-800
+                [&::-webkit-slider-thumb]:mt-[-4px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:shadow-[0_0_8px_#10b98160]"
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>1d</span>
+              <span>30d</span>
+            </div>
+            <p className="text-center text-sm text-emerald-400">${hackerPrice}</p>
+          </div>
+        )}
+
+        {isPro && (
+          <div className="mb-6 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-500">Lifespan</span>
+              <span className="text-emerald-400 text-sm tabular-nums">{proMonths}m</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={12}
+              value={proMonths}
+              onChange={(e) => setProMonths(Number(e.target.value))}
+              className="w-full cursor-pointer appearance-none rounded-full bg-zinc-800 outline-none
+                [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-zinc-800
+                [&::-webkit-slider-thumb]:mt-[-4px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:shadow-[0_0_8px_#10b98160]"
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>1m</span>
+              <span>12m</span>
+            </div>
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <span className="text-sm text-emerald-400">${proPrice}</span>
+              <span className="text-xs text-zinc-600">|</span>
+              <span className="text-sm text-purple-400 font-semibold">$49 Lifetime</span>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-3 rounded border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400">&gt; {error}</div>
+        )}
+
+        <div className="mt-auto flex flex-col gap-2">
+          {isFree && (
+            <button
+              onClick={() => handleActivate("free", freeLifespan * 60)}
+              disabled={activating}
+              className="w-full rounded-lg border border-zinc-700 px-4 py-2.5 text-sm text-zinc-400 transition-all hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-40"
+            >
+              {activating ? "Activating..." : "Activate Free"}
+            </button>
+          )}
+          {isHacker && (
+            <button
+              onClick={() => handleActivate("hacker", hackerDays * 1440)}
+              disabled={activating}
+              className="w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-40"
+            >
+              {activating ? "Activating..." : `Pay $${hackerPrice}`}
+            </button>
+          )}
+          {isPro && (
+            <>
+              <button
+                onClick={() => handleActivate("pro", proMonths * 43200)}
+                disabled={activating}
+                className="w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-400 transition-all hover:bg-emerald-500/20 disabled:opacity-40"
+              >
+                {activating ? "Activating..." : `Pay $${proPrice}`}
+              </button>
+              <button
+                onClick={() => handleActivate("pro", 525600)}
+                disabled={activating}
+                className="w-full rounded-lg border border-purple-500/50 bg-purple-500/10 px-4 py-2.5 text-sm text-purple-400 transition-all hover:bg-purple-500/20 disabled:opacity-40"
+              >
+                {activating ? "Activating..." : "$49 Lifetime"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className={`relative flex flex-col rounded-2xl border p-6 transition-all duration-300 md:p-8 ${isMiddle ? "border-emerald-500/40 bg-zinc-900/80 shadow-[0_0_24px_#10b98120] hover:shadow-[0_0_32px_#10b98130]" : "border-zinc-800/60 bg-zinc-900/60 hover:border-zinc-700/80 hover:shadow-[0_0_16px_#10b98110]"}`}>
-      {isMiddle && <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500/10 px-3 py-0.5 text-[11px] font-medium uppercase tracking-widest text-emerald-400 border border-emerald-500/30">{t("pricing.badge", lang)}</div>}
-      <div className="mb-4 text-2xl">{plan.emoji}</div>
-      <h3 className="text-lg font-semibold text-zinc-100">{t(plan.titleKey, lang)}</h3>
-      <ul className="my-6 flex flex-col gap-2.5">
-        {plan.featuresKeys.map((fk) => (
-          <li key={fk} className="flex items-start gap-2 text-sm text-zinc-400">
-            <span className="mt-0.5 text-emerald-500">▸</span>
-            {t(fk, lang)}
-          </li>
-        ))}
-      </ul>
-      {plan.priceKey && <p className="mb-6 text-xs tracking-wider text-zinc-500">{t(plan.priceKey, lang)}</p>}
-      <div className="mt-auto">
-        {plan.variant === "outline" && (
-          <button onClick={handleClick} className="w-full rounded-lg border border-zinc-700 px-4 py-2.5 text-sm text-zinc-400 transition-all hover:border-zinc-500 hover:text-zinc-200">{t(plan.buttonKey, lang)}</button>
-        )}
-        {plan.variant === "glow" && (
-          <button onClick={handleClick} className="w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_20px_#10b98140]">{t(plan.buttonKey, lang)}</button>
-        )}
-        {plan.variant === "premium" && (
-          <button onClick={handleClick} className="w-full rounded-lg border border-zinc-600 bg-gradient-to-b from-zinc-700 to-zinc-800 px-4 py-2.5 text-sm text-zinc-200 transition-all hover:from-zinc-600 hover:to-zinc-700 hover:shadow-[0_0_16px_#a855f720]">{t(plan.buttonKey, lang)}</button>
-        )}
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-4xl rounded-2xl border border-zinc-800 bg-zinc-950/90 p-8 backdrop-blur-md">
+        <button onClick={onClose} className="absolute right-4 top-4 text-zinc-500 transition-colors hover:text-zinc-300">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        <div className="mb-8 text-center">
+          <h2 className="text-xl font-semibold text-zinc-100">Choose Your Server</h2>
+          <p className="mt-1 text-sm text-zinc-500">Select a plan that fits your needs</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {planCard("free")}
+          {planCard("hacker")}
+          {planCard("pro")}
+        </div>
       </div>
     </div>
   );
@@ -545,243 +693,56 @@ function Footer({ lang }: { lang: LangCode }) {
   );
 }
 
-function Workspace({
-  profile,
-  lang,
-  onProfileChange,
-}: {
-  profile: Profile;
-  lang: LangCode;
-  onProfileChange: (p: Profile) => void;
-}) {
-  const [supabase] = useState(createClient);
-  const [prompt, setPrompt] = useState("");
-  const [lifespan, setLifespan] = useState(3);
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-
-  const isFree = profile.plan === "free";
-  const maxLifespan = isFree ? 3 : 1440;
-
-  const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
-    if (isFree && val > 3) { setLifespan(3); return; }
-    setLifespan(val);
-  };
-
-  const handleSpawn = async () => {
-    if (!prompt.trim()) return;
-    setGenerating(true);
-    setError("");
-
-    const client = supabase ?? createClient();
-    if (!client) { setError(t("error.notConfigured", lang)); setGenerating(false); return; }
-
-    const { data: { session } } = await client.auth.getSession();
-    if (!session) { setError(t("error.notAuthenticated", lang)); setGenerating(false); return; }
-
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), lifespan_minutes: lifespan }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Generation failed"); setGenerating(false); return; }
-      onProfileChange({ ...profile, credits_remaining: profile.credits_remaining - 1 });
-      router.push(`/v/${data.id}`);
-    } catch { setError(t("error.network", lang)); setGenerating(false); }
-  };
-
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-zinc-100">
-            {t("ws.heading", lang)}
-            <span className="ml-2 text-xs font-normal text-zinc-600">_</span>
-          </h2>
-          <p className="mt-1 text-xs text-zinc-600">
-            {t("ws.plan", lang)} <span className="text-emerald-400">{profile.plan.toUpperCase()}</span>
-            {" · "}
-            {t("ws.credits", lang)} <span className="text-emerald-400">{profile.credits_remaining}</span>
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-xs text-zinc-500">{t("ws.promptLabel", lang)}</label>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={t("ws.promptPlaceholder", lang)}
-          rows={5}
-          className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
-        />
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500">{t("ws.lifespanLabel", lang)}</label>
-          <span className="text-sm tabular-nums tracking-wider text-emerald-400">
-            {formatLifespanI18n(lifespan, lang)}
-          </span>
-        </div>
-        <input
-          type="range"
-          min={3}
-          max={maxLifespan}
-          value={lifespan}
-          onChange={handleSlider}
-          className="w-full cursor-pointer appearance-none rounded-full bg-zinc-800 outline-none
-            [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-zinc-800
-            [&::-webkit-slider-thumb]:mt-[-4px] [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-400 [&::-webkit-slider-thumb]:shadow-[0_0_8px_#10b98160] [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-125
-            [&::-moz-range-track]:h-1.5 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-zinc-800
-            [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-emerald-400 [&::-moz-range-thumb]:shadow-[0_0_8px_#10b98160] [&::-moz-range-thumb]:border-0"
-        />
-        <div className="flex items-center justify-between text-[11px] text-zinc-600">
-          <span>{t("ws.minLabel", lang)}</span>
-          <span>{t("ws.maxLabel", lang)}</span>
-        </div>
-        {isFree && <p className="text-xs text-amber-500/80">⚠ {t("ws.upgradeWarning", lang)}</p>}
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs text-red-400">&gt; {error}</div>
-      )}
-
-      <button
-        onClick={handleSpawn}
-        disabled={generating || !prompt.trim()}
-        className="w-full rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-6 py-3 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_24px_#10b98140] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {generating ? (
-          <span className="flex items-center justify-center gap-2">
-            <span className="inline-block h-3 w-3 animate-ping rounded-full bg-emerald-400" />
-            {t("ws.generating", lang)}
-          </span>
-        ) : (
-          t("ws.spawnButton", lang)
-        )}
-      </button>
-    </div>
-  );
-}
-
 export default function Home() {
+  const router = useRouter();
   const [supabase] = useState(createClient);
   const [user, setUser] = useState<User | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileError, setProfileError] = useState("");
+  const [serverPlanOpen, setServerPlanOpen] = useState(false);
   const [lang, setLang] = useState<LangCode>("en");
 
-  const fetchProfile = useCallback(
-    async (userId: string) => {
-      const client = supabase ?? createClient();
-      if (!client) return;
-      const { data, error } = await client
-        .from("profiles")
-        .select("plan, credits_remaining")
-        .eq("id", userId)
-        .single();
-      if (error && error.code !== "PGRST116") {
-        console.error("[fetchProfile] DB error:", error);
-      }
-      if (data) {
-        setProfile(data as Profile);
-        setProfileError("");
-      } else {
-        setProfile(null);
-      }
-    },
-    [supabase]
-  );
-
   useEffect(() => {
-    if (!supabase) { console.warn("[Home] supabase client is null — check .env.local"); return; }
+    if (!supabase) { console.warn("[Home] supabase client is null"); return; }
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("[Home] getSession:", session?.user?.email ?? "none");
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Home] onAuthStateChange event:", event, "user:", session?.user?.email ?? "none");
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, fetchProfile]);
+  }, [supabase]);
 
   const handleSignOut = useCallback(async () => {
     const client = supabase ?? createClient();
     await client?.auth.signOut();
-    setProfile(null);
-    setProfileError("");
   }, [supabase]);
 
-  const handleActivatePlan = useCallback(
-    async (tier: PlanTier) => {
-      const client = supabase ?? createClient();
-      if (!client || !user) return;
-      setProfileError("");
+  const handleChooseServer = () => {
+    if (!user) { setModalOpen(true); return; }
+    setServerPlanOpen(true);
+  };
 
-      if (tier === "free") {
-        console.log("[handleActivatePlan] inserting free profile for", user.id);
-        const { error } = await client.from("profiles").insert({
-          id: user.id,
-          plan: "free",
-          credits_remaining: 15,
-        });
-        if (error) {
-          console.error("[handleActivatePlan] insert error:", error);
-          setProfileError(t("error.profileInsertFailed", lang));
-        } else {
-          console.log("[handleActivatePlan] profile created successfully");
-          setProfile({ plan: "free", credits_remaining: 15 });
-        }
-      } else {
-        console.log(`Redirect to checkout for ${tier}`);
-      }
-    },
-    [supabase, user, lang]
-  );
-
-  const showPricing = !user || !profile;
-  const showWorkspace = user && profile;
+  const handleActivated = () => {
+    setServerPlanOpen(false);
+    router.push("/dashboard");
+  };
 
   return (
     <>
-      <Navbar user={user} onLoginClick={() => setModalOpen(true)} onSignOut={handleSignOut} lang={lang} onLangChange={setLang} />
+      <Navbar user={user} onLoginClick={() => setModalOpen(true)} onChooseServer={handleChooseServer} onSignOut={handleSignOut} lang={lang} onLangChange={setLang} />
       <LoginModal open={modalOpen} onClose={() => setModalOpen(false)} lang={lang} />
-      <main className="flex min-h-screen flex-col items-center px-4 pt-16">
-        {showPricing && (
-          <section className="w-full max-w-6xl py-16 md:py-24">
-            <div className="mb-12 text-center md:mb-16">
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-100 md:text-4xl">
-                {t("pricing.heading", lang)} <span className="text-emerald-400">Arsenal</span>
-              </h1>
-              <p className="mt-3 text-sm text-zinc-500 md:text-base">{t("pricing.subtitle", lang)}</p>
-            </div>
-            {profileError && (
-              <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs text-red-400 text-center">&gt; {profileError}</div>
-            )}
-            <div className="grid gap-6 md:grid-cols-3 md:gap-8">
-              {plans.map((plan, i) => (
-                <PlanCard key={plan.titleKey} plan={plan} index={i} user={user} lang={lang} onActivate={handleActivatePlan} onRequireAuth={() => setModalOpen(true)} />
-              ))}
-            </div>
-          </section>
-        )}
-        {showWorkspace && (
-          <section className="w-full max-w-4xl py-8 md:py-16">
-            <Workspace profile={profile} lang={lang} onProfileChange={setProfile} />
-          </section>
-        )}
+      <ServerPlanModal open={serverPlanOpen} onClose={() => setServerPlanOpen(false)} user={user} lang={lang} onActivated={handleActivated} />
+      <main className="flex min-h-screen flex-col items-center justify-center px-4 pt-16">
+        <div className="text-center space-y-4">
+          <div className="text-6xl text-emerald-400/20">◈</div>
+          <h1 className="text-2xl font-semibold text-zinc-200">CodeLink</h1>
+          <p className="text-sm text-zinc-500">Deploy your server in seconds</p>
+          <button onClick={handleChooseServer} className="mt-4 inline-block rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-6 py-3 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_24px_#10b98140]">
+            Choose Server
+          </button>
+        </div>
       </main>
       <Footer lang={lang} />
     </>
