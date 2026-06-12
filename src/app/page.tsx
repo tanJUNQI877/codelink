@@ -48,6 +48,38 @@ function LogOutIcon() {
   );
 }
 
+function generatePassword(): string {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const digits = "0123456789";
+  const special = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  const all = upper + lower + digits + special;
+  let pw = "";
+  pw += upper[Math.floor(Math.random() * upper.length)];
+  pw += lower[Math.floor(Math.random() * lower.length)];
+  pw += digits[Math.floor(Math.random() * digits.length)];
+  pw += special[Math.floor(Math.random() * special.length)];
+  for (let i = 0; i < 12; i++) {
+    pw += all[Math.floor(Math.random() * all.length)];
+  }
+  return pw.split("").sort(() => Math.random() - 0.5).join("");
+}
+
+function passwordStrength(pw: string): "none" | "weak" | "strong" {
+  if (!pw) return "none";
+  if (pw.length < 8) return "weak";
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasLower = /[a-z]/.test(pw);
+  const hasDigit = /\d/.test(pw);
+  const hasSpecial = /[^A-Za-z0-9]/.test(pw);
+  const types = [hasUpper, hasLower, hasDigit, hasSpecial].filter(Boolean).length;
+  return types >= 3 ? "strong" : "weak";
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function LoginModal({
   open,
   onClose,
@@ -58,18 +90,25 @@ function LoginModal({
   lang: LangCode;
 }) {
   const [supabase] = useState(createClient);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleOAuth = useCallback(
-    async (provider: "github" | "google") => {
-      const client = supabase ?? createClient();
-      if (!client) return;
-      await client.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback` },
-      });
-    },
-    [supabase]
-  );
+  useEffect(() => {
+    if (!open) return;
+    setMode("login");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setError("");
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -79,6 +118,99 @@ function LoginModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
+
+  const handleOAuth = useCallback(
+    async (provider: "github" | "google") => {
+      const client = supabase ?? createClient();
+      if (!client) return;
+      setError("");
+      await client.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback` },
+      });
+    },
+    [supabase]
+  );
+
+  const handleGeneratePassword = () => {
+    const pw = generatePassword();
+    setPassword(pw);
+    setConfirmPassword(pw);
+    setShowPassword(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!isValidEmail(email)) {
+      setError(t("error.invalidEmail", lang));
+      return;
+    }
+
+    if (mode === "register") {
+      if (!name.trim()) {
+        setError(t("error.nameRequired", lang));
+        return;
+      }
+      if (password.length < 6) {
+        setError(t("error.passwordTooShort", lang));
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError(t("error.passwordsDoNotMatch", lang));
+        return;
+      }
+    } else {
+      if (password.length < 6) {
+        setError(t("error.passwordTooShort", lang));
+        return;
+      }
+    }
+
+    const client = supabase ?? createClient();
+    if (!client) return;
+
+    setLoading(true);
+
+    if (mode === "register") {
+      const { data, error: authError } = await client.auth.signUp({
+        email,
+        password,
+        options: { data: { user_name: name.trim(), display_name: name.trim() } },
+      });
+      if (authError) {
+        if (authError.message?.includes("already")) {
+          setError(t("error.emailInUse", lang));
+        } else {
+          setError(authError.message);
+        }
+        setLoading(false);
+        return;
+      }
+      if (data.user) {
+        const { error: insertError } = await client.from("profiles").insert({
+          id: data.user.id,
+          plan: "free",
+          credits_remaining: 15,
+        });
+        if (insertError) console.error("[register] profile insert:", insertError);
+      }
+      onClose();
+    } else {
+      const { error: authError } = await client.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) {
+        setError(t("error.authFailed", lang));
+        setLoading(false);
+        return;
+      }
+      onClose();
+    }
+    setLoading(false);
+  };
 
   if (!open) return null;
 
@@ -95,10 +227,108 @@ function LoginModal({
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
+
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-zinc-100">{t("modal.heading", lang)}</h2>
+          <h2 className="text-lg font-semibold text-zinc-100">{mode === "login" ? t("modal.loginAction", lang) : t("modal.registerAction", lang)}</h2>
           <p className="mt-1 text-sm text-zinc-500">{t("modal.subtitle", lang)}</p>
         </div>
+
+        {error && (
+          <div className="w-full rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs text-red-400">&gt; {error}</div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
+          {mode === "register" && (
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-500">{t("modal.name", lang)}</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+              />
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-zinc-500">{t("modal.email", lang)}</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-zinc-500">{t("modal.password", lang)}</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 pr-24 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+              />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex gap-1">
+                {mode === "register" && (
+                  <button type="button" onClick={handleGeneratePassword} className="rounded px-1.5 py-1 text-[11px] text-zinc-500 transition-colors hover:text-emerald-400" title={t("modal.generatePassword", lang)}>
+                    {t("modal.generatePassword", lang)}
+                  </button>
+                )}
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="rounded px-1.5 py-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300">
+                  {showPassword ? t("modal.hidePassword", lang) : t("modal.showPassword", lang)}
+                </button>
+              </div>
+            </div>
+            {mode === "register" && password && (
+              <div className="flex items-center gap-2 mt-1">
+                <div className={`h-1 flex-1 rounded-full ${passwordStrength(password) === "strong" ? "bg-emerald-500" : "bg-red-500"}`} />
+                <span className={`text-[10px] ${passwordStrength(password) === "strong" ? "text-emerald-400" : "text-red-400"}`}>
+                  {passwordStrength(password) === "strong" ? t("modal.strong", lang) : t("modal.weak", lang)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {mode === "register" && (
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-500">{t("modal.confirmPassword", lang)}</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+                />
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_16px_#10b98140] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="inline-block h-3 w-3 animate-ping rounded-full bg-emerald-400" />
+                {mode === "login" ? t("modal.loginAction", lang) : t("modal.registerAction", lang)}
+              </span>
+            ) : (
+              mode === "login" ? t("modal.loginAction", lang) : t("modal.registerAction", lang)
+            )}
+          </button>
+        </form>
+
+        <div className="relative w-full">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-zinc-800" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-zinc-950/90 px-2 text-zinc-600">or</span>
+          </div>
+        </div>
+
         <div className="flex w-full flex-col gap-3">
           <button onClick={() => handleOAuth("github")} className="flex w-full items-center justify-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-medium text-zinc-200 transition-all duration-200 hover:scale-[1.02] hover:border-emerald-500/50 hover:bg-zinc-800 hover:text-emerald-300 hover:shadow-[0_0_16px_#10b98120] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50">
             <GithubLogo />
@@ -109,6 +339,16 @@ function LoginModal({
             {t("modal.google", lang)}
           </button>
         </div>
+
+        <button
+          onClick={() => {
+            setMode(mode === "login" ? "register" : "login");
+            setError("");
+          }}
+          className="text-xs text-zinc-500 transition-colors hover:text-emerald-400"
+        >
+          {mode === "login" ? t("modal.switchToRegister", lang) : t("modal.switchToLogin", lang)}
+        </button>
       </div>
     </div>
   );
@@ -175,10 +415,7 @@ function Navbar({
             </button>
           </>
         ) : (
-          <>
-            <button onClick={onLoginClick} className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">{t("nav.login", lang)}</button>
-            <button onClick={onLoginClick} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">{t("nav.signup", lang)}</button>
-          </>
+          <button onClick={onLoginClick} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">{t("nav.login", lang)}</button>
         )}
       </div>
     </nav>
@@ -438,7 +675,7 @@ export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileError, setProfileError] = useState("");
-  const [lang, setLang] = useState<LangCode>("zh-CN");
+  const [lang, setLang] = useState<LangCode>("en");
 
   const fetchProfile = useCallback(
     async (userId: string) => {

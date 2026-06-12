@@ -252,6 +252,73 @@ export const T: TranslationMap = {
     ja: "Googleで続ける", ko: "Google로 계속", es: "Continuar con Google",
     fr: "Continuer avec Google", de: "Mit Google fortfahren", ru: "Продолжить с Google", ar: "المتابعة عبر Google",
   },
+  "modal.email": {
+    en: "Email", "zh-CN": "邮箱", "zh-TW": "信箱",
+    ja: "メール", ko: "이메일", es: "Correo electrónico",
+    fr: "Email", de: "E-Mail", ru: "Электронная почта", ar: "البريد الإلكتروني",
+  },
+  "modal.password": {
+    en: "Password", "zh-CN": "密码", "zh-TW": "密碼",
+    ja: "パスワード", ko: "비밀번호", es: "Contraseña",
+    fr: "Mot de passe", de: "Passwort", ru: "Пароль", ar: "كلمة المرور",
+  },
+  "modal.name": {
+    en: "Name", "zh-CN": "名称", "zh-TW": "名稱",
+    ja: "名前", ko: "이름", es: "Nombre",
+    fr: "Nom", de: "Name", ru: "Имя", ar: "الاسم",
+  },
+  "modal.confirmPassword": {
+    en: "Confirm Password", "zh-CN": "确认密码", "zh-TW": "確認密碼",
+    ja: "パスワード確認", ko: "비밀번호 확인", es: "Confirmar contraseña",
+    fr: "Confirmer le mot de passe", de: "Passwort bestätigen", ru: "Подтвердите пароль", ar: "تأكيد كلمة المرور",
+  },
+  "modal.loginAction": {
+    en: "Login", "zh-CN": "登录", "zh-TW": "登入",
+    ja: "ログイン", ko: "로그인", es: "Iniciar sesión",
+    fr: "Connexion", de: "Anmelden", ru: "Войти", ar: "تسجيل الدخول",
+  },
+  "modal.registerAction": {
+    en: "Register", "zh-CN": "注册", "zh-TW": "註冊",
+    ja: "登録", ko: "가입", es: "Registrarse",
+    fr: "S'inscrire", de: "Registrieren", ru: "Регистрация", ar: "اشتراك",
+  },
+  "modal.switchToLogin": {
+    en: "Already have an account? Login", "zh-CN": "已有账号？登录", "zh-TW": "已有帳號？登入",
+    ja: "すでにアカウントをお持ちですか？ログイン", ko: "이미 계정이 있으신가요? 로그인",
+    es: "¿Ya tienes una cuenta? Inicia sesión", fr: "Déjà un compte ? Connectez-vous",
+    de: "Bereits ein Konto? Anmelden", ru: "Уже есть аккаунт? Войти", ar: "هل لديك حساب؟ سجل الدخول",
+  },
+  "modal.switchToRegister": {
+    en: "Don't have an account? Register", "zh-CN": "没有账号？注册", "zh-TW": "沒有帳號？註冊",
+    ja: "アカウントをお持ちでないですか？登録", ko: "계정이 없으신가요? 가입",
+    es: "¿No tienes cuenta? Regístrate", fr: "Pas de compte ? Inscrivez-vous",
+    de: "Noch kein Konto? Registrieren", ru: "Нет аккаунта? Зарегистрироваться", ar: "ليس لديك حساب؟ اشترك",
+  },
+  "modal.showPassword": {
+    en: "Show", "zh-CN": "显示", "zh-TW": "顯示",
+    ja: "表示", ko: "보기", es: "Mostrar",
+    fr: "Afficher", de: "Anzeigen", ru: "Показать", ar: "إظهار",
+  },
+  "modal.hidePassword": {
+    en: "Hide", "zh-CN": "隐藏", "zh-TW": "隱藏",
+    ja: "非表示", ko: "숨기기", es: "Ocultar",
+    fr: "Masquer", de: "Verstecken", ru: "Скрыть", ar: "إخفاء",
+  },
+  "modal.generatePassword": {
+    en: "Generate", "zh-CN": "生成", "zh-TW": "生成",
+    ja: "生成", ko: "생성", es: "Generar",
+    fr: "Générer", de: "Generieren", ru: "Сгенерировать", ar: "توليد",
+  },
+  "modal.weak": {
+    en: "Weak", "zh-CN": "弱", "zh-TW": "弱",
+    ja: "弱い", ko: "약함", es: "Débil",
+    fr: "Faible", de: "Schwach", ru: "Слабый", ar: "ضعيف",
+  },
+  "modal.strong": {
+    en: "Strong", "zh-CN": "强", "zh-TW": "強",
+    ja: "強い", ko: "강함", es: "Fuerte",
+    fr: "Fort", de: "Stark", ru: "Сильный", ar: "قوي",
+  },
 
   /* Footer */
   "footer.terms": {
@@ -319,6 +386,43 @@ export const T: TranslationMap = {
     de: "Kein Guthaben mehr. Upgrade deinen Plan.",
     ru: "Недостаточно кредитов. Обновите план.",
     ar: "لا توجد أرصدة متبقية. قم بترقية خطتك.",
+  },
+
+  "error.invalidEmail": {
+    en: "Invalid email format", "zh-CN": "邮箱格式无效", "zh-TW": "信箱格式無效",
+    ja: "メールアドレスの形式が無効です", ko: "이메일 형식이 잘못되었습니다",
+    es: "Formato de correo inválido", fr: "Format d'email invalide",
+    de: "Ungültiges E-Mail-Format", ru: "Неверный формат email", ar: "تنسيق البريد الإلكتروني غير صالح",
+  },
+  "error.passwordTooShort": {
+    en: "Password must be at least 6 characters", "zh-CN": "密码至少需要6个字符", "zh-TW": "密碼至少需要6個字元",
+    ja: "パスワードは6文字以上必要です", ko: "비밀번호는 6자 이상이어야 합니다",
+    es: "La contraseña debe tener al menos 6 caracteres", fr: "Le mot de passe doit contenir au moins 6 caractères",
+    de: "Passwort muss mindestens 6 Zeichen lang sein", ru: "Пароль должен быть не менее 6 символов", ar: "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
+  },
+  "error.passwordsDoNotMatch": {
+    en: "Passwords do not match", "zh-CN": "密码不匹配", "zh-TW": "密碼不匹配",
+    ja: "パスワードが一致しません", ko: "비밀번호가 일치하지 않습니다",
+    es: "Las contraseñas no coinciden", fr: "Les mots de passe ne correspondent pas",
+    de: "Passwörter stimmen nicht überein", ru: "Пароли не совпадают", ar: "كلمات المرور غير متطابقة",
+  },
+  "error.nameRequired": {
+    en: "Name is required", "zh-CN": "名称是必填项", "zh-TW": "名稱為必填項",
+    ja: "名前は必須です", ko: "이름은 필수입니다",
+    es: "El nombre es obligatorio", fr: "Le nom est requis",
+    de: "Name ist erforderlich", ru: "Имя обязательно", ar: "الاسم مطلوب",
+  },
+  "error.authFailed": {
+    en: "Invalid email or password", "zh-CN": "邮箱或密码错误", "zh-TW": "信箱或密碼錯誤",
+    ja: "メールアドレスまたはパスワードが無効です", ko: "이메일 또는 비밀번호가 잘못되었습니다",
+    es: "Correo o contraseña inválidos", fr: "Email ou mot de passe invalide",
+    de: "Ungültige E-Mail oder ungültiges Passwort", ru: "Неверный email или пароль", ar: "البريد الإلكتروني أو كلمة المرور غير صالحة",
+  },
+  "error.emailInUse": {
+    en: "This email is already registered", "zh-CN": "该邮箱已被注册", "zh-TW": "該信箱已被註冊",
+    ja: "このメールアドレスは既に登録されています", ko: "이 이메일은 이미 등록되었습니다",
+    es: "Este correo ya está registrado", fr: "Cet email est déjà inscrit",
+    de: "Diese E-Mail ist bereits registriert", ru: "Этот email уже зарегистрирован", ar: "هذا البريد الإلكتروني مسجل بالفعل",
   },
 
   /* Lifespan formatting keys */
