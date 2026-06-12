@@ -13,6 +13,14 @@ import {
 
 type PlanTier = "free" | "hacker" | "pro";
 
+interface Profile {
+  plan: PlanTier;
+  credits_remaining: number;
+  lifespan_max_minutes?: number;
+  max_pages?: number;
+  max_storage_mb?: number;
+}
+
 function GithubLogo() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
@@ -350,15 +358,19 @@ function LoginModal({
 
 function Navbar({
   user,
+  profile,
   onLoginClick,
   onChooseServer,
+  onExport,
   onSignOut,
   lang,
   onLangChange,
 }: {
   user: User | null;
+  profile: Profile | null;
   onLoginClick: () => void;
   onChooseServer: () => void;
+  onExport: () => void;
   onSignOut: () => void;
   lang: LangCode;
   onLangChange: (l: LangCode) => void;
@@ -369,57 +381,84 @@ function Navbar({
   const [open, setOpen] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-zinc-800/50 bg-zinc-950/70 px-6 backdrop-blur-md md:px-12">
+    <nav className="fixed top-0 left-0 right-0 z-50 flex h-16 items-center justify-between border-b border-zinc-800/50 bg-zinc-950/70 px-4 backdrop-blur-md md:px-6">
       <div className="flex items-center gap-3">
         <Image src="/logo.png" alt="CodeLink" width={28} height={28} className="rounded" />
         <span className="text-lg font-semibold tracking-wider text-zinc-100">{t("nav.brand", lang)}</span>
       </div>
-      <div className="flex items-center gap-6">
-        <div className="hidden sm:block">
-          <div className="relative">
-            <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400 transition-all hover:border-zinc-600 hover:text-zinc-200">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-              {LANGUAGES.find((l) => l.code === lang)?.label ?? "English"}
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? "rotate-180" : ""}`}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            {open && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl">
-                  {LANGUAGES.map((l) => (
-                    <button key={l.code} onClick={() => { onLangChange(l.code); setOpen(false); }} className={`w-full px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-800 ${lang === l.code ? "text-emerald-400" : "text-zinc-400"}`}>
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        {user ? (
-          <button onClick={onChooseServer} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">
-            Choose Server
+
+      <button onClick={user ? onChooseServer : onLoginClick} className="rounded-lg border border-emerald-500/50 px-5 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">
+        Free Server
+      </button>
+
+      <div className="flex items-center gap-4">
+        <button onClick={onExport} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 transition-all hover:border-zinc-500 hover:text-zinc-200">
+          Export
+        </button>
+
+        <div className="relative">
+          <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400 transition-all hover:border-zinc-600 hover:text-zinc-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+            {LANGUAGES.find((l) => l.code === lang)?.label ?? "English"}
           </button>
-        ) : (
-          <button onClick={onLoginClick} className="rounded-lg border border-emerald-500/50 px-4 py-1.5 text-sm text-emerald-400 transition-all hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_12px_#10b98140]">{t("nav.login", lang)}</button>
-        )}
-        {user && (
+          {open && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+              <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-zinc-800 bg-zinc-950 py-1 shadow-xl">
+                {LANGUAGES.map((l) => (
+                  <button key={l.code} onClick={() => { onLangChange(l.code); setOpen(false); }} className={`w-full px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-800 ${lang === l.code ? "text-emerald-400" : "text-zinc-400"}`}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {user ? (
           <>
-            <span className="text-sm text-emerald-400">{displayName}</span>
+            <span className="text-sm text-emerald-400 hidden md:inline">{displayName}</span>
             <button onClick={onSignOut} className="flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-300">
               <LogOutIcon />
-              <span className="hidden sm:inline">{t("nav.signout", lang)}</span>
             </button>
           </>
+        ) : (
+          <button onClick={onLoginClick} className="text-sm text-zinc-400 transition-colors hover:text-zinc-100">{t("nav.login", lang)}</button>
         )}
       </div>
     </nav>
+  );
+}
+
+function UpgradeModal({
+  open,
+  onClose,
+  onChooseServer,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onChooseServer: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950/90 p-8 backdrop-blur-md text-center">
+        <button onClick={onClose} className="absolute right-4 top-4 text-zinc-500 transition-colors hover:text-zinc-300">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+        <div className="text-3xl mb-4">🔒</div>
+        <h2 className="text-lg font-semibold text-zinc-100 mb-2">Upgrade to Export</h2>
+        <p className="text-sm text-zinc-500 mb-6">Exporting source code requires a Hacker or Pro plan.</p>
+        <button onClick={() => { onClose(); onChooseServer(); }} className="w-full rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20">
+          View Plans
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -596,6 +635,10 @@ function ServerPlanModal({
           </div>
         )}
 
+        <div className="mb-3 text-[10px] text-zinc-600 text-center border-t border-zinc-800/50 pt-3 mt-2">
+          Free domain comes with server
+        </div>
+
         {error && (
           <div className="mb-3 rounded border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400">&gt; {error}</div>
         )}
@@ -693,30 +736,111 @@ function Footer({ lang }: { lang: LangCode }) {
   );
 }
 
+interface VFile {
+  path: string;
+  content: string;
+}
+
+function assemblePreview(files: VFile[]): string {
+  const htmlFile = files.find((f) => f.path === "/index.html");
+  if (!htmlFile)
+    return `<html><body><div style="color:#52525b;font-family:monospace;padding:3rem;text-align:center;">&gt; Generate code to see preview</div></body></html>`;
+
+  let html = htmlFile.content;
+  const css = files
+    .filter((f) => f.path.endsWith(".css"))
+    .map((f) => f.content)
+    .join("\n");
+  if (css) html = html.replace("</head>", `<style>${css}</style></head>`);
+  const js = files
+    .filter((f) => f.path.endsWith(".js"))
+    .map((f) => f.content)
+    .join("\n");
+  if (js) html = html.replace("</body>", `<script>${js}</script></body>`);
+  return html;
+}
+
+function FileTree({
+  files,
+  selected,
+  onSelect,
+}: {
+  files: VFile[];
+  selected: string | null;
+  onSelect: (path: string) => void;
+}) {
+  const dirs = new Set<string>();
+  files.forEach((f) => {
+    const parts = f.path.split("/").filter(Boolean);
+    let p = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      p += "/" + parts[i];
+      dirs.add(p);
+    }
+  });
+
+  return (
+    <div className="border-t border-zinc-800/50 bg-zinc-950/50 p-3 text-xs">
+      <div className="mb-2 text-[10px] uppercase tracking-wider text-zinc-600">Files</div>
+      {files.length === 0 && <p className="text-zinc-700 italic">No files yet</p>}
+      {files.map((f) => (
+        <button
+          key={f.path}
+          onClick={() => onSelect(f.path)}
+          className={`w-full flex items-center gap-2 rounded px-2 py-1 text-left transition-colors ${
+            selected === f.path ? "bg-emerald-500/10 text-emerald-300" : "text-zinc-400 hover:bg-zinc-800/50"
+          }`}
+        >
+          <span>📄</span>
+          <span>{f.path}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
-  const router = useRouter();
   const [supabase] = useState(createClient);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [serverPlanOpen, setServerPlanOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [lang, setLang] = useState<LangCode>("en");
+  const [prompt, setPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [messages, setMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [files, setFiles] = useState<VFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [previewTab, setPreviewTab] = useState<"ui" | "code">("ui");
+  const [error, setError] = useState("");
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const client = supabase ?? createClient();
+    if (!client) return;
+    const { data } = await client.from("profiles").select("*").eq("id", userId).single();
+    if (data) setProfile(data as Profile);
+    else setProfile(null);
+  }, [supabase]);
 
   useEffect(() => {
-    if (!supabase) { console.warn("[Home] supabase client is null"); return; }
+    if (!supabase) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+      else setProfile(null);
     });
-
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, [supabase, fetchProfile]);
 
   const handleSignOut = useCallback(async () => {
     const client = supabase ?? createClient();
     await client?.auth.signOut();
+    setProfile(null);
   }, [supabase]);
 
   const handleChooseServer = () => {
@@ -726,25 +850,157 @@ export default function Home() {
 
   const handleActivated = () => {
     setServerPlanOpen(false);
-    router.push("/dashboard");
+    setProfile((prev) => prev ? { ...prev, plan: "free" } : null);
   };
+
+  const handleExport = () => {
+    if (!user) { setModalOpen(true); return; }
+    if (!profile || profile.plan === "free") { setUpgradeOpen(true); return; }
+    const blob = new Blob([assemblePreview(files)], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "codelink-export.html";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSpawn = async () => {
+    if (!prompt.trim()) return;
+    setGenerating(true);
+    setError("");
+    setMessages((prev) => [...prev, { role: "user", text: prompt.trim() }]);
+
+    const client = supabase ?? createClient();
+    if (!client) { setError("Supabase not configured"); setGenerating(false); return; }
+    const { data: { session } } = await client.auth.getSession();
+    if (!session) { setError("Not logged in"); setGenerating(false); return; }
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim(), lifespan_minutes: 60 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? "Generation failed"); setGenerating(false); return; }
+      setPrompt("");
+
+      const newFiles: VFile[] = [
+        { path: "/index.html", content: "..." },
+        { path: "/styles.css", content: "..." },
+        { path: "/script.js", content: "..." },
+      ];
+      setFiles(newFiles);
+      setSelectedFile("/index.html");
+      setMessages((prev) => [...prev, { role: "ai", text: `Generated page: ${data.id}` }]);
+      setPreviewTab("ui");
+    } catch { setError("Network error"); }
+    setGenerating(false);
+  };
+
+  const showExport = files.length > 0;
 
   return (
     <>
-      <Navbar user={user} onLoginClick={() => setModalOpen(true)} onChooseServer={handleChooseServer} onSignOut={handleSignOut} lang={lang} onLangChange={setLang} />
+      <Navbar user={user} profile={profile} onLoginClick={() => setModalOpen(true)} onChooseServer={handleChooseServer} onExport={handleExport} onSignOut={handleSignOut} lang={lang} onLangChange={setLang} />
       <LoginModal open={modalOpen} onClose={() => setModalOpen(false)} lang={lang} />
       <ServerPlanModal open={serverPlanOpen} onClose={() => setServerPlanOpen(false)} user={user} lang={lang} onActivated={handleActivated} />
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 pt-16">
-        <div className="text-center space-y-4">
-          <div className="text-6xl text-emerald-400/20">◈</div>
-          <h1 className="text-2xl font-semibold text-zinc-200">CodeLink</h1>
-          <p className="text-sm text-zinc-500">Deploy your server in seconds</p>
-          <button onClick={handleChooseServer} className="mt-4 inline-block rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-6 py-3 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_24px_#10b98140]">
-            Choose Server
-          </button>
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} onChooseServer={handleChooseServer} />
+
+      <main className="flex h-screen w-full pt-16">
+        <div className="flex w-1/2 flex-col border-r border-zinc-800/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 && (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-sm text-zinc-600">&gt; Describe the web app you want to build...</p>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} className={`rounded-lg border px-4 py-3 text-sm ${m.role === "user" ? "border-zinc-800 bg-zinc-900/60 text-zinc-200" : "border-emerald-500/10 bg-emerald-500/[0.02] text-zinc-300"}`}>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-600 mb-1">{m.role === "user" ? "You" : "CodeLink"}</div>
+                <div className="whitespace-pre-wrap">{m.text}</div>
+              </div>
+            ))}
+            {error && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-2 text-xs text-red-400">&gt; {error}</div>
+            )}
+          </div>
+
+          <div className="border-t border-zinc-800/50 p-4 space-y-3">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe the web app you want to build..."
+              rows={3}
+              className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 text-sm text-zinc-200 placeholder-zinc-600 transition-colors focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+            />
+            <button
+              onClick={handleSpawn}
+              disabled={generating || !prompt.trim()}
+              className="w-full rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/20 hover:shadow-[0_0_16px_#10b98140] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {generating ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="inline-block h-3 w-3 animate-ping rounded-full bg-emerald-400" />
+                  Generating...
+                </span>
+              ) : (
+                "> SPAWN CODE"
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex w-1/2 flex-col">
+          <div className="flex border-b border-zinc-800/50">
+            <button
+              onClick={() => setPreviewTab("ui")}
+              className={`flex-1 px-4 py-2.5 text-xs tracking-wider transition-colors ${
+                previewTab === "ui" ? "border-b-2 border-emerald-500 text-emerald-400" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              UI Preview
+            </button>
+            <button
+              onClick={() => setPreviewTab("code")}
+              className={`flex-1 px-4 py-2.5 text-xs tracking-wider transition-colors ${
+                previewTab === "code" ? "border-b-2 border-emerald-500 text-emerald-400" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              Code
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {previewTab === "ui" ? (
+              <iframe
+                key={files.length}
+                srcDoc={assemblePreview(files)}
+                className="h-full w-full border-0 bg-white"
+                title="Preview"
+                sandbox="allow-scripts"
+              />
+            ) : (
+              <div className="h-full overflow-y-auto p-4">
+                {selectedFile && files.find((f) => f.path === selectedFile) ? (
+                  <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-mono">
+                    {files.find((f) => f.path === selectedFile)?.content}
+                  </pre>
+                ) : (
+                  <pre className="text-xs text-zinc-600 font-mono">
+                    {files.map((f) => `// ── ${f.path} ──\n${f.content}\n`).join("\n")}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
+
+          {showExport && (
+            <FileTree files={files} selected={selectedFile} onSelect={setSelectedFile} />
+          )}
         </div>
       </main>
-      <Footer lang={lang} />
     </>
   );
 }
