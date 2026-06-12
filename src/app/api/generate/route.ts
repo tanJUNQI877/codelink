@@ -194,6 +194,7 @@ Rules:
 
   return NextResponse.json({
     id: page.id,
+    html_code: htmlCode,
     expires_at: expiresAt.toISOString(),
   });
 }

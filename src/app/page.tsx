@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -741,6 +740,15 @@ interface VFile {
   content: string;
 }
 
+function parseHtmlToFiles(html: string): VFile[] {
+  const files: VFile[] = [{ path: "/index.html", content: html }];
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/);
+  if (styleMatch) files.push({ path: "/styles.css", content: styleMatch[1] });
+  const scriptMatch = html.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+  if (scriptMatch) files.push({ path: "/script.js", content: scriptMatch[1] });
+  return files;
+}
+
 function assemblePreview(files: VFile[]): string {
   const htmlFile = files.find((f) => f.path === "/index.html");
   if (!htmlFile)
@@ -886,14 +894,11 @@ export default function Home() {
       if (!res.ok) { setError(data.error ?? "Generation failed"); setGenerating(false); return; }
       setPrompt("");
 
-      const newFiles: VFile[] = [
-        { path: "/index.html", content: "..." },
-        { path: "/styles.css", content: "..." },
-        { path: "/script.js", content: "..." },
-      ];
+      const newFiles = parseHtmlToFiles(data.html_code);
       setFiles(newFiles);
       setSelectedFile("/index.html");
-      setMessages((prev) => [...prev, { role: "ai", text: `Generated page: ${data.id}` }]);
+      const lines = newFiles.map((f) => `${f.path} (${f.content.length}B)`).join(", ");
+      setMessages((prev) => [...prev, { role: "ai", text: `Generated: ${lines}` }]);
       setPreviewTab("ui");
     } catch { setError("Network error"); }
     setGenerating(false);
